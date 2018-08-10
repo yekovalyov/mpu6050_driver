@@ -1,6 +1,7 @@
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/device.h>
+#include <linux/delay.h>
 #include <linux/err.h>
 #include <linux/i2c.h>
 #include <linux/i2c-dev.h>
@@ -15,6 +16,7 @@
 
 
 #include "mpu6050-regs.h"
+#include "mpu6050-irq.h"
 
 
 struct mpu6050_data {
@@ -27,6 +29,7 @@ struct mpu6050_data {
 
 
 static struct mpu6050_data g_mpu6050_data;
+
 
 static int mpu6050_read_data(void)
 {
@@ -123,6 +126,22 @@ static ssize_t temperature_show(struct class *class, struct class_attribute *att
 }
 
 
+static ssize_t irq_counter_show(struct class *class, struct class_attribute *attr, char *buf)
+{
+	sprintf(buf, "%d\n", mpu6050_irq_cnt);
+	return strlen(buf);
+}
+
+static ssize_t irq_counter_store(struct class *class, struct class_attribute *attr, const char *buf, size_t count)
+{
+	unsigned int  cnt = 0;
+	sscanf(buf, "%du", &cnt);
+
+	mpu6050_irq_cnt = cnt;
+	return count;
+}
+
+
 CLASS_ATTR_RO(accel_x);
 CLASS_ATTR_RO(accel_y);
 CLASS_ATTR_RO(accel_z);
@@ -130,6 +149,8 @@ CLASS_ATTR_RO(gyro_x);
 CLASS_ATTR_RO(gyro_y);
 CLASS_ATTR_RO(gyro_z);
 CLASS_ATTR_RO(temperature);
+CLASS_ATTR_RW(irq_counter);
+
 
 static struct class *attr_class = 0;
 
@@ -199,14 +220,25 @@ static int mpu6050_init(void)
 		printk(KERN_ERR "mpu6050: failed to create sysfs class attribute temperature: %d\n", ret);
 		return ret;
 	}
+	/* Create irq_cnt */
+	ret = class_create_file(attr_class, &class_attr_irq_counter);
+	if (ret) {
+		printk(KERN_ERR "mpu6050: failed to create sysfs class attribute irq_counter: %d\n", ret);
+		return ret;
+	}
 
 	printk(KERN_INFO "mpu6050: sysfs class attributes created\n");
+
+	mpu6050_irq_init();
+
 	printk(KERN_INFO "mpu6050: module loaded\n");
 	return 0;
 }
 
 static void mpu6050_exit(void)
 {
+	mpu6050_irq_free();
+
 	if (attr_class) {
 		class_remove_file(attr_class, &class_attr_accel_x);
 		class_remove_file(attr_class, &class_attr_accel_y);
@@ -215,17 +247,17 @@ static void mpu6050_exit(void)
 		class_remove_file(attr_class, &class_attr_gyro_y);
 		class_remove_file(attr_class, &class_attr_gyro_z);
 		class_remove_file(attr_class, &class_attr_temperature);
-		printk(KERN_INFO "mpu6050: sysfs class attributes removed\n");
-
+		class_remove_file(attr_class, &class_attr_irq_counter);
+		printk(KERN_INFO "mpu6050: sysfs class attributes has been removed\n");
 
 		class_destroy(attr_class);
-		printk(KERN_INFO "mpu6050: sysfs class destroyed\n");
+		printk(KERN_INFO "mpu6050: sysfs class has been destroyed\n");
 	}
 /*
 	i2c_del_driver(&mpu6050_i2c_driver);
-*/
-	printk(KERN_INFO "mpu6050: i2c driver deleted\n");
 
+	printk(KERN_INFO "mpu6050: i2c driver deleted\n");
+*/
 	printk(KERN_INFO "mpu6050: module exited\n");
 }
 
@@ -264,12 +296,15 @@ static int mpu6050_probe(struct i2c_client *client, const struct i2c_device_id *
 
 	/* Setup the device */
 	/* No error handling here! */
+	i2c_smbus_write_byte_data(client, REG_PWR_MGMT_1, 0x80); // reset start - auto cleared
+	msleep_interruptible(20);  // waiting for reset
 	i2c_smbus_write_byte_data(client, REG_CONFIG, 0);
 	i2c_smbus_write_byte_data(client, REG_GYRO_CONFIG, 0);
 	i2c_smbus_write_byte_data(client, REG_ACCEL_CONFIG, 0);
 	i2c_smbus_write_byte_data(client, REG_FIFO_EN, 0);
 	i2c_smbus_write_byte_data(client, REG_INT_PIN_CFG, 0);
-	i2c_smbus_write_byte_data(client, REG_INT_ENABLE, 0);
+	// 7-FF,6-MOT,5-ZMOT,4-FIFO_OFLOW,3-I2C_MST_INT,2-PLL_RDY_INT,1-DMP_INT,0-RAW_RDY
+	i2c_smbus_write_byte_data(client, REG_INT_ENABLE, 0xff);
 	i2c_smbus_write_byte_data(client, REG_USER_CTRL, 0);
 	i2c_smbus_write_byte_data(client, REG_PWR_MGMT_1, 0);
 	i2c_smbus_write_byte_data(client, REG_PWR_MGMT_2, 0);
@@ -277,6 +312,7 @@ static int mpu6050_probe(struct i2c_client *client, const struct i2c_device_id *
 	printk(KERN_INFO "mpu6050: i2c driver probed\n");
 	return 0;
 }
+
 
 static int mpu6050_remove(struct i2c_client *client)
 {
@@ -355,4 +391,4 @@ MODULE_AUTHOR("Andriy.Khulap <andriy.khulap@globallogic.com>");
 MODULE_AUTHOR("Yevgen Kovalyov<yevgen.kovalyov@globallogic.com>");
 MODULE_DESCRIPTION("mpu6050 I2C acc&gyro");
 MODULE_LICENSE("GPL");
-MODULE_VERSION("0.2");
+MODULE_VERSION("0.3");

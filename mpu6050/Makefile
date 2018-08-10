@@ -3,7 +3,9 @@
 #
 ifneq ($(KERNELRELEASE),)
 
-obj-m := mpu6050.o
+mpu6050-objs += mpu6050-core.o mpu6050-irq.o
+
+obj-m += mpu6050.o
 
 else
 
