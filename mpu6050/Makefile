@@ -9,27 +9,36 @@ else
 
 
 ifeq ($(KERNELDIR),)
-ifeq ($(BBB_KERNEL),)
-	$(error Path to kernel tree - KERNELDIR or BBB_KERNEL variable is not defined!)
+ifeq ($(OPI_KERNELDIR),)
+
+#$(warning Path to kernel tree - KERNELDIR or OPI_KERNELDIR variable is not defined!)
+
 endif
 endif
 
-KERNELDIR ?= $(BBB_KERNEL)
+KERNELDIR ?= $(OPI_KERNELDIR)
 
 export ARCH = arm
 export CROSS_COMPILE ?= arm-linux-gnueabihf-
 
 
-.PHONY: all clean dtb
+.PHONY: all clean dtb info
+
 
 all:
 	$(MAKE) -C $(KERNELDIR) M=$(CURDIR) modules
+
+info:
+	@echo ARCH=$(ARCH)
+	@echo KERNELDIR=$(KERNELDIR)
+	@echo OPI_KERNELDIR=$(OPI_KERNELDIR)
+	@echo CROSS_COMPILE=$(CROSS_COMPILE)
+
 
 clean:
 	$(MAKE) -C $(KERNELDIR) M=$(CURDIR) clean
 
 dtb:
-	cp am335x-bone-common.dtsi $(KERNELDIR)/arch/arm/boot/dts/
 	$(MAKE) -C $(KERNELDIR) M=$(CURDIR) dtbs
 
 

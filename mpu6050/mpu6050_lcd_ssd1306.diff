@@ -1,0 +1,29 @@
+diff --git a/arch/arm/boot/dts/sun8i-h3-orangepi-one.dts b/arch/arm/boot/dts/sun8i-h3-orangepi-one.dts
+index 232f124..18f812f 100644
+--- a/arch/arm/boot/dts/sun8i-h3-orangepi-one.dts
++++ b/arch/arm/boot/dts/sun8i-h3-orangepi-one.dts
+@@ -130,6 +130,24 @@
+ 	};
+ };
+ 
++&i2c0 {
++	status = "okay";
++	gl_gyro: gl_gyro@68 {
++		compatible = "gl,mpu6050";
++		reg = <0x68>;
++		status = "okay";
++	};
++};
++
++&i2c1 {
++	status = "okay";
++	lcd_ssd1306: lcd_ssd1306@3c {
++		 compatible = "DAndy,lcd_ssd1306";
++		reg = <0x3c>;
++		status = "okay";
++	};
++};
++
+ &mmc0 {
+ 	vmmc-supply = <&reg_vcc3v3>;
+ 	bus-width = <4>;
